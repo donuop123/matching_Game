@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+    <script src="http://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <title>翻牌記憶遊戲</title>
+    <style>
+        /* * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            border-radius: 10px;
+        } */
+
+        /* canvas {
+            padding: 20px;
+            position: absolute;
+            left: 50%;
+            margin: 20px 0 0 -250px;
+        } */
+
+        canvas {
+            padding-left: 0;
+            padding-right: 0;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+            width: 400px;
+            background-color: brown;
+            border-radius: 10px;
+        }
+
+        .mask {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            z-index: 99;
+            background: rgba(0, 0, 0, 0.5)
+        }
+
+        .intro {
+            width: 370px;
+            height: 400px;
+            position: relative;
+            background: rgba(255, 255, 255, 0.8);
+            white-space: pre-line;
+            margin-top: 50px;
+            margin-left: auto;
+            margin-right: auto;
+            font-weight: bolder;
+            font-size: 20px;
+            line-height: 40px;
+            font-family: "微軟正黑體";
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        #tiktok {
+            width: 400px;
+            height: 18px;
+            margin: 20px auto;
+            background-image: linear-gradient(to right, green, rgb(62, 207, 62), rgb(181, 212, 0), red);
+            border: 1px solid black;
+        }
+
+        #counter {
+            width: 100%;
+            height: 100%;
+            background: white;
+            float: right;
+        }
+
+        button {
+            position: relative;
+            margin-top: 30px;
+            margin-left: 110px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div>
+        <canvas id="canvas" width="400px" height="500px" style="border: 1px solid black" "></canvas>
+    </div>
+    <div id="tiktok">
+            <div id="counter"></div>
+    </div>
+    
+    <img id="cardImg" src="img/cardBack.jpg" alt="" style="display: none">
+    <img id="bgi" src="img/background.jpg" alt="" style="display: none">
+
+    <audio id="flipSound" src="sound/flipSound-02.wav"></audio>
+    <audio id="correctSound" src="sound/correctSound.wav"></audio>
+
+    <div class="mask">
+        <div class="intro">
+            遊戲方式：
+            1.翻牌後記住牌面花色及位置
+            2.連續翻出兩張同花色的牌就可以消除
+            3.在時間內消除所有的牌即完成遊戲
+            <button onclick="startGame()" class="btn btn-dark">開始遊戲</button>
+        </div>
+    </div>
+    <script type="text/javascript">
+        function startGame() {
+            document.getElementsByClassName("mask")[0].style.display = "none";
+
+            var c = document.getElementById("canvas");
+            var ctx = c.getContext("2d");
+            var i = 0;
+            var canvas;
+            var card; //  卡牌
+            var first_pick = true; // 第一次點擊
+            var first_card = -1;
+            var second_card;
+            var deck = []; // 卡牌組數
+            var back_color = "rgb(255, 0, 0)";
+            var table_color = "rgb(165, 42, 42)";
+            var complete = 0; //完成的牌數
+
+            var timer = 60000; //  倒數時間(毫秒)
+            var counterHandle; //  計時條
+            var counterWidth = 100; //  計時條長度
+
+            var flipSound = document.getElementById("flipSound");
+            var correctSound = document.getElementById("correctSound");
+
+            var first_x = 25; // 卡牌初始 x 座標
+            var first_y = 10; // 卡牌初始 y 座標
+            var margin = 10; // 卡牌間的距離
+            var cardWidth = 80;
+            var cardHeight = 100;
+            console.log(first_pick);
+            var pairs = [
+                ["img/1.jpg", "img/1.jpg"],
+                ["img/2.jpg", "img/2.jpg"],
+                ["img/3.jpg", "img/3.jpg"],
+                ["img/4.jpg", "img/4.jpg"],
+                ["img/5.jpg", "img/5.jpg"],
+                ["img/6.jpg", "img/6.jpg"],
+                ["img/7.jpg", "img/7.jpg"],
+                ["img/8.jpg", "img/8.jpg"]
+            ];
+            // 繪製 canvas 的背景
+            // var imgs = new Image();
+            // imgs.src = "img/background.jpg";
+            // imgs.onload = createPat;
+            // function createPat() {
+            //     var bg = ctx.createPattern(imgs, "no-repeat");
+            //     ctx.fillStyle = bg;
+            //     ctx.fillRect(0, 0, 400, 500);
+            // };
+
+
+            function draw_back() {
+                // ctx.fillStyle = back_color;
+                // var img = document.getElementById("cardBack");
+                ctx.drawImage(cardImg, this.sx, this.sy, this.swidth, this.sheight);
+                // ctx.fillRect(this.sx, this.sy, this.swidth, this.sheight);
+            }
+            // 定義牌的屬性
+            function Card(sx, sy, swidth, sheight, img, info) { // 構造函數
+                this.sx = sx;
+                this.sy = sy;
+                this.swidth = swidth;
+                this.sheight = sheight;
+                this.img = img;
+                this.info = info;
+                this.draw = draw_back;
+            };
+
+            function make_deck() {
+                var i;
+                var a_card; // a組卡牌容器
+                var b_card; // b組卡牌容器
+                var a_pic; // a組卡牌圖片
+                var b_pic; // b組卡牌圖片
+                var card_x = first_x;
+                var card_y = first_y;
+                for (var i = 0; i < pairs.length / 2; i++) {
+                    a_pic = new Image();
+                    a_pic.src = pairs[i][0];
+                    // 繪製卡牌a組
+                    a_card = new Card(card_x, card_y, cardWidth, cardHeight, a_pic, i); // 給卡牌屬性即卡牌對象生成了 並繪製了背面
+                    deck.push(a_card); // 將a組卡牌放進 deck
+                    // 繪製與a組卡牌一樣的b組
+                    b_pic = new Image();
+                    b_pic.src = pairs[i][1];
+                    // 繪製卡牌b組
+                    b_card = new Card(card_x, card_y + cardHeight + margin * 2, cardWidth, cardHeight, b_pic, i);
+                    deck.push(b_card);
+                    card_x = card_x + cardWidth + margin;
+                    a_card.draw();
+                    b_card.draw();
+                };
+                //  繪製後兩排
+                var card_x = first_x;
+                var card_y = first_y + cardHeight * 2 + margin * 4;
+                for (var i = 4; i < pairs.length; i++) {
+                    a_pic = new Image();
+                    a_pic.src = pairs[i][0];
+                    // 繪製卡牌a組
+                    a_card = new Card(card_x, card_y, cardWidth, cardHeight, a_pic, i);
+                    deck.push(a_card);
+                    // 繪製與a組卡牌一樣的b組
+                    b_pic = new Image();
+                    b_pic.src = pairs[i][1];
+                    // 繪製卡牌b組
+                    b_card = new Card(card_x, card_y + cardHeight + margin * 2, cardWidth, cardHeight, b_pic, i);
+                    deck.push(b_card);
+                    card_x = card_x + cardWidth + margin;
+                    a_card.draw();
+                    b_card.draw();
+                };
+            };
+            console.log(deck);
+
+            function shuffle() {
+                var tempInfo;
+                var tempImg;
+                var deck_length = deck.length;
+                for (var k = 0; k < deck_length; k++) {
+                    var i = Math.floor(Math.random() * deck_length);
+                    var j = Math.floor(Math.random() * deck_length);
+                    tempInfo = deck[i].info; // 第i張
+                    tempImg = deck[i].img; // 第i張圖片 
+                    deck[i].info = deck[j].info;
+                    deck[i].img = deck[j].img;
+                    deck[j].info = tempInfo;
+                    deck[j].img = tempImg;
+                    console.log(tempInfo);
+                    console.log(tempImg);
+                };
+            };
+
+
+            function choose(ev) {
+                var x, y;
+                var i;
+                if (ev.layerX || ev.layerY == 0) { // firefox
+                    x = ev.layerX;
+                    y = ev.layerY;
+                } else if (ev.offsetX || ev.offsetY == 0) { // opera
+                    x = ev.offsetX;
+                    y = ev.offsetY;
+                };
+                for (var i = 0; i < deck.length; i++) {
+                    card = deck[i];
+                    console.log(card);
+                    if (card.sx >= 0) { // 牌未被消除
+                        if (x > card.sx && x < card.sx + card.swidth && y > card.sy && y < card.sy + card
+                            .sheight) {
+                            if (i != first_card); // 如果點擊同一張牌不作處理
+                            break;
+                        };
+                    };
+                };
+                if (i < deck.length) {
+                    if (first_pick) {
+                        first_card = i;
+                        console.log(first_card);
+                        first_pick = false; //note
+                        ctx.drawImage(card.img, card.sx, card.sy, card.swidth, card.sheight);
+                        flipSound.currentTime = 0;
+                        flipSound.play();
+                    } else {
+                        first_pick = true; //note
+                        second_card = i;
+                        console.log(second_card);
+                        console.log(card.info);
+                        ctx.drawImage(card.img, card.sx, card.sy, card.swidth, card.sheight);
+                        flipSound.currentTime = 0;
+                        flipSound.play();
+                        tid = setTimeout(flipBack, 1000);
+                    };
+                };
+            };
+
+            var flag = setInterval(timeCounter, 125);
+
+            function flipBack() {
+                if (card.info == deck[first_card].info) { // 配對成功    
+                    console.log(card.info);
+                    console.log(deck[first_card].info);
+                    ctx.font = "20px Impact";
+                    ctx.fillStyle = "red";
+                    // ctx.save();
+                    ctx.drawImage(deck[first_card].img, deck[first_card].sx, deck[first_card].sy, deck[first_card]
+                        .swidth, deck[first_card]
+                            .sheight);
+                    console.log(deck[first_card].sx);
+                    console.log(deck[first_card].sy)
+                    ctx.drawImage(deck[second_card].img, deck[second_card].sx, deck[second_card].sy, deck[second_card]
+                        .swidth, deck[second_card]
+                            .sheight);
+                    // ctx.restore();
+                    ctx.save();
+                    // ctx.rotate(30 * Math.PI / 180);
+                    console.log(deck[first_card].sx)
+                    console.log(deck[first_card].sy)
+                    ctx.fillText("Complete！", deck[first_card].sx, deck[first_card].sy + 55);
+                    ctx.fillText("Complete！", deck[second_card].sx, deck[second_card].sy + 55);
+                    console.log(deck[first_card].sx)
+                    console.log(deck[first_card].sy)
+                    ctx.restore();
+                    correctSound.currentTime = 0;
+                    correctSound.play();
+
+                    deck[first_card].sx = -1;
+                    deck[second_card].sy = -1;
+                    console.log(deck[first_card].sx)
+                    first_card = -1;
+                    complete = complete + 2;
+                    console.log(complete);
+                    if (complete >= 16) {
+                        result();
+                    };
+                } else {
+                    deck[first_card].draw();
+                    deck[second_card].draw();
+                    first_card = -1;
+                };
+            };
+
+            // function rotateText() {
+            //     ctx.save();
+            //     ctx.font = "20px Georgia";
+            //     ctx.fillStyle = "red";
+            //     ctx.rotate(20 * Math.PI / 180);
+            //     ctx.fillText("Complete！", deck[first_card].sx, deck[first_card].sy);
+            //     ctx.restore();
+            //     ctx.save();
+            //     ctx.font = "20px Georgia";
+            //     ctx.fillStyle = "red";
+            //     ctx.rotate(20 * Math.PI / 180);
+            //     ctx.fillText("Complete！", deck[second_card].sx, deck[second_card].sy);
+            //     ctx.restore();
+
+            // };
+
+            //計時條倒數函式
+            function timeCounter() {
+                if (timer < 0) {
+                    document.getElementById('counter').style.width = "0%";
+                    // clearInterval(flag);
+                    result(); //計時結束時執行結果判定函式
+                } else {
+                    timer -= 125;
+                    // console.log(timer);
+                    counterWidth -= 0.21;
+                    document.getElementById('counter').style.width = counterWidth + "%";
+                    if (complete >= 16) {
+                        clearInterval(flag);
+                        // timer -= 0;
+                    };
+                }
+            }
+
+            //結果判定函式
+            function result() {
+                let com = complete;
+                let str = "";
+
+                //設定結果字串
+                if (com >= 16) {
+                    str = "遊戲結果：\n<h1 style='font-size:50px'><b>恭喜完成遊戲<b><h1>";
+                } else {
+                    str = "遊戲結果：\n還有 " + (16 - com) + " 張未完成\n" + "<h1 style='font-size:60px'><b>失敗<b><h1>";
+                }
+
+                //把結果字串寫入提示顯示區
+                document.getElementsByClassName('intro')[0].innerHTML = str;
+                document.getElementsByClassName('mask')[0].style.display = "block";
+
+            }
+
+
+
+
+            function init() {
+                canvas = document.getElementById("canvas");
+                canvas.addEventListener("click", choose, false);
+                ctx = canvas.getContext("2d");
+
+                make_deck();
+                shuffle();
+            };
+
+            $(window).ready(function () {
+                init();
+            });
+        };
+    </script>
+
+
+</body>
+
+</html>
